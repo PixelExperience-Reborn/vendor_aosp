@@ -30,3 +30,12 @@ Run `bash -n vendor/aosp/build/envsetup.sh` and `bash tests/a17_envsetup_helpers
 ## Changes deliberately not made
 
 No device trees, no GMS blobs, no automatic source merges, no changes to `vendorsetup.sh`, `roomservice.py`, `common.mk`, or target signing/version properties. The original PE helper names are retained.
+
+## Stage 7 — AOSP 17 selection / obsolete vendorsetup
+
+- `breakfast` with no arguments no longer calls the removed interactive `lunch` menu. In an interactive terminal it selects a product via AOSP `list_products`, validates release choices with `list_releases`, and then calls AOSP `lunch PRODUCT RELEASE userdebug`. Without an interactive terminal it displays products and exits nonzero; no build starts.
+- `breakfast --help` and `brunch --help` are side-effect-free; `brunch` still never builds after a failed selection.
+- `vendorsetup.sh` no longer downloads the original PE official_devices/Android 14 list or populates `lunch_others_targets`. Android 17 product discovery belongs in each device's `AndroidProducts.mk` and `build/release`. This change creates **no other device trees**.
+- `build/tools/roomservice.py` is deliberately **unchanged**. Its original organization, hardcoded fallback `fourteen`, auto-sync and local-manifest writes must be separately audited before activation. Do not auto-run it on the Android 17 base.
+- Tests are shell-mock/static tests only. Interactive selection, product availability, full AOSP 17 lunch, Soong bootstrap and `bacon` need a synced Linux build tree.
+- This stage updates the **existing** draft PR #1. No new repo, PR or default-branch change.
