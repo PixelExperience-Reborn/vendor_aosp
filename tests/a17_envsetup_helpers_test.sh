@@ -48,7 +48,30 @@ assert_lunch 'aosp_mondrian|trunk_staging|user'
 PE_LUNCH_RELEASE=beta breakfast mondrian
 assert_lunch 'aosp_mondrian|beta|userdebug'
 
-if breakfast >/dev/null 2>&1; then echo 'FAIL: accepted no args' >&2; exit 1; fi
+# AOSP 17 removed the zero-argument lunch menu. In a non-interactive
+# environment breakfast prints available products and never builds.
+list_products() { printf '%s\n' aosp_mondrian aosp_cf_x86_64_phone; }
+list_releases() { printf '%s\n' trunk_staging; }
+noarg_text="$(breakfast </dev/null 2>&1)" && {
+    echo 'FAIL: zero-argument breakfast succeeded without a terminal' >&2
+    exit 1
+}
+[[ "$noarg_text" == *aosp_mondrian* ]] || {
+    echo 'FAIL: did not show available products' >&2
+    exit 1
+}
+if brunch --help >/dev/null 2>&1; then :; else
+    echo 'FAIL: brunch --help failed' >&2
+    exit 1
+fi
+[[ "${#MKA_CALLS[@]}" -eq 0 ]] || {
+    echo 'FAIL: brunch --help unexpectedly built' >&2
+    exit 1
+}
+if breakfast --help >/dev/null 2>&1; then :; else
+    echo 'FAIL: breakfast --help failed' >&2
+    exit 1
+fi
 if breakfast 'mondrian;rm' >/dev/null 2>&1; then echo 'FAIL: accepted invalid product' >&2; exit 1; fi
 if breakfast mondrian badvariant >/dev/null 2>&1; then echo 'FAIL: accepted invalid variant' >&2; exit 1; fi
 if breakfast mondrian user bad-release >/dev/null 2>&1; then echo 'FAIL: accepted invalid release' >&2; exit 1; fi
