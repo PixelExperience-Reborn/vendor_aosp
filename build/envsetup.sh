@@ -51,8 +51,89 @@ function mk_timer()
     return $ret
 }
 
+# AOSP 17 has no interactive bare `lunch`; keep PE's selection workflow
+# without restoring the removed AOSP/PE lunch implementation.
+function _pe_breakfast_choose_product()
+{
+    local product_list product release_list chosen_release
+    local item
+    local products=() releases=()
+    local release="${PE_LUNCH_RELEASE:-trunk_staging}"
+    local variant=userdebug
+
+    if ! declare -F list_products >/dev/null 2>&1; then
+        echo "PixelExperience: source AOSP 17 build/envsetup.sh first (list_products missing)." >&2
+        return 127
+    fi
+    if ! product_list="$(list_products)"; then
+        echo "PixelExperience: could not list AOSP products." >&2
+        return 1
+    fi
+    while IFS= read -r item; do
+        [[ "$item" =~ ^[a-zA-Z0-9_]+$ ]] && products+=("$item")
+    done <<< "$product_list"
+    if (( ${#products[@]} == 0 )); then
+        echo "PixelExperience: no AOSP products available; verify device/AndroidProducts.mk." >&2
+        return 1
+    fi
+    if [[ ! -t 0 || ! -t 1 ]]; then
+        printf 'Available AOSP products:\n%s\n' "${products[*]}"
+        echo "Usage: breakfast <device> [variant] [release] (interactive selection needs a terminal)." >&2
+        return 2
+    fi
+
+    echo "PixelExperience: select an AOSP product:"
+    local PS3='Product number: '
+    select product in "${products[@]}"; do
+        [[ -n "$product" ]] && break
+        [[ -z "$REPLY" ]] && return 2
+        echo 'Invalid selection.' >&2
+    done
+
+    if ! declare -F list_releases >/dev/null 2>&1; then
+        echo "PixelExperience: AOSP list_releases is unavailable." >&2
+        return 127
+    fi
+    if ! release_list="$(list_releases "$product")"; then
+        echo "PixelExperience: could not list release configurations for $product." >&2
+        return 1
+    fi
+    while IFS= read -r item; do
+        [[ "$item" =~ ^[a-zA-Z0-9_]+$ ]] && releases+=("$item")
+    done <<< "$release_list"
+    if (( ${#releases[@]} == 0 )); then
+        echo "PixelExperience: no release configurations for $product." >&2
+        return 1
+    fi
+    chosen_release=''
+    for item in "${releases[@]}"; do
+        if [[ "$item" == "$release" ]]; then
+            chosen_release="$release"
+            break
+        fi
+    done
+    if [[ -z "$chosen_release" ]]; then
+        echo "Default release $release is unavailable for $product. Select one:"
+        PS3='Release number: '
+        select chosen_release in "${releases[@]}"; do
+            [[ -n "$chosen_release" ]] && break
+            [[ -z "$REPLY" ]] && return 2
+            echo 'Invalid selection.' >&2
+        done
+    fi
+    if ! declare -F lunch >/dev/null 2>&1; then
+        echo "PixelExperience: source AOSP 17 build/envsetup.sh first (lunch missing)." >&2
+        return 127
+    fi
+    lunch "$product" "$chosen_release" "$variant"
+}
+
 function brunch()
 {
+    if [[ $# -eq 1 && "$1" == "--help" ]]; then
+        breakfast --help
+        return $?
+    fi
     # Do not start an Android build if lunch fails.
     if ! breakfast "$@"; then
         echo "PixelExperience: breakfast failed; skipping build." >&2
@@ -77,9 +158,18 @@ function breakfast()
     local release="${PE_LUNCH_RELEASE:-trunk_staging}"
     local product
 
-    if [[ $# -eq 0 || $# -gt 3 ]]; then
+    if [[ $# -eq 0 ]]; then
+        _pe_breakfast_choose_product
+        return $?
+    fi
+    if [[ $# -eq 1 && "$target" == "--help" ]]; then
+        echo "Usage: breakfast <device> [user|userdebug|eng] [release]"
+        echo "   or: breakfast aosp_<device>-<release>-<variant>"
+        echo "   or: breakfast (interactive AOSP product selection)"
+        return 0
+    fi
+    if [[ $# -gt 3 ]]; then
         echo "Usage: breakfast <device> [user|userdebug|eng] [release]" >&2
-        echo "   or: breakfast aosp_<device>-<release>-<variant>" >&2
         return 2
     fi
 
