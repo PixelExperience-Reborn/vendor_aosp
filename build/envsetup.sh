@@ -53,38 +53,79 @@ function mk_timer()
 
 function brunch()
 {
-    breakfast $*
-    if [ $? -eq 0 ]; then
-        mka bacon
-    else
-        echo "No such item in brunch menu. Try 'breakfast'"
+    # Do not start an Android build if lunch fails.
+    if ! breakfast "$@"; then
+        echo "PixelExperience: breakfast failed; skipping build." >&2
         return 1
     fi
-    return $?
+
+    # The historical PE build target is retained until its AOSP 17 rules are ported.
+    if ! command -v mka >/dev/null 2>&1; then
+        echo "PixelExperience: mka is not available; cannot build bacon." >&2
+        return 127
+    fi
+    mka bacon
 }
 
 function breakfast()
 {
-    target=$1
-    local variant=$2
+    # PE compatibility: breakfast <device> [variant] [release]
+    # Explicit AOSP 17 form: breakfast aosp_<device>-<release>-<variant>
+    # Do not override the platform's lunch function or its release configuration.
+    local target="${1:-}"
+    local variant="userdebug"
+    local release="${PE_LUNCH_RELEASE:-trunk_staging}"
+    local product
 
-    if [ $# -eq 0 ]; then
-        # No arguments, so let's have the full menu
-        lunch
+    if [[ $# -eq 0 || $# -gt 3 ]]; then
+        echo "Usage: breakfast <device> [user|userdebug|eng] [release]" >&2
+        echo "   or: breakfast aosp_<device>-<release>-<variant>" >&2
+        return 2
+    fi
+
+    if [[ "$target" =~ ^([a-zA-Z0-9_]+)-([a-zA-Z0-9_]+)-(user|userdebug|eng)$ ]]; then
+        if [[ $# -ne 1 ]]; then
+            echo "PixelExperience: full lunch combo cannot take extra arguments." >&2
+            return 2
+        fi
+        product="${BASH_REMATCH[1]}"
+        release="${BASH_REMATCH[2]}"
+        variant="${BASH_REMATCH[3]}"
+    elif [[ "$target" =~ ^([a-zA-Z0-9_]+)-(user|userdebug|eng)$ ]]; then
+        if [[ $# -ne 1 ]]; then
+            echo "PixelExperience: device-variant combo cannot take extra arguments." >&2
+            return 2
+        fi
+        product="${BASH_REMATCH[1]}"
+        variant="${BASH_REMATCH[2]}"
     else
-        if [[ "$target" =~ -(user|userdebug|eng)$ ]]; then
-            # A buildtype was specified, assume a full device name
-            lunch $target
-        else
-            # This is probably just the model name
-            if [ -z "$variant" ]; then
-                variant="userdebug"
-            fi
-
-            lunch aosp_$target-$variant
+        product="$target"
+        if [[ $# -ge 2 ]]; then
+            variant="$2"
+        fi
+        if [[ $# -eq 3 ]]; then
+            release="$3"
         fi
     fi
-    return $?
+
+    if [[ ! "$product" =~ ^[a-zA-Z0-9_]+$ ||
+          ! "$release" =~ ^[a-zA-Z0-9_]+$ ||
+          ! "$variant" =~ ^(user|userdebug|eng)$ ]]; then
+        echo "PixelExperience: invalid product, release or build variant." >&2
+        return 2
+    fi
+
+    if [[ "$product" != aosp_* ]]; then
+        product="aosp_${product}"
+    fi
+
+    if ! command -v lunch >/dev/null 2>&1; then
+        echo "PixelExperience: source AOSP build/envsetup.sh before breakfast." >&2
+        return 127
+    fi
+
+    # AOSP 17 accepts lunch PRODUCT RELEASE VARIANT; preserve its validation.
+    lunch "$product" "$release" "$variant"
 }
 
 alias bib=breakfast
