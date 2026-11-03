@@ -1,0 +1,34 @@
+name: AOSP 17 PE environment checks
+
+on:
+  push:
+    branches:
+      - port/a17-vendor-envsetup-20261102
+  pull_request:
+    paths:
+      - vendorsetup.sh
+      - build/envsetup.sh
+      - tests/a17_*envsetup*
+      - tests/a17_vendorsetup_test.sh
+      - .github/workflows/aosp17-envsetup-checks.yml
+
+permissions:
+  contents: read
+
+jobs:
+  envsetup:
+    name: AOSP 17 vendor helper checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staged PixelExperience vendor
+        uses: actions/checkout@v4
+      - name: Check Bash syntax
+        run: |
+          bash -n vendorsetup.sh
+          bash -n build/envsetup.sh
+          bash -n tests/a17_vendorsetup_test.sh
+          bash -n tests/a17_envsetup_helpers_test.sh
+      - name: Test PE breakfast and brunch argument translation
+        run: bash tests/a17_envsetup_helpers_test.sh build/envsetup.sh
+      - name: Test AOSP17 vendor hook integration
+        run: bash tests/a17_vendorsetup_test.sh vendorsetup.sh
