@@ -18,8 +18,9 @@ Three isolated GNU Make fixture scenarios were evaluated: non-GMS selection; exp
 
 ## Remaining work
 
-- Audit `ro.com.google.clientidbase`, Google atrace/error receiver, OPA, proprietary package references and launcher overlays: some legacy properties are still assigned by `common.mk` in non-GMS mode.
-- Test both choices against the *full* AOSP17 product dependency graph. Default includes for old PixelExperience do not guarantee a functioning pure AOSP product.
+- The legacy `ro.com.google.clientidbase`, Google error/atrace receivers, legal links, OPA, Gboard and Google SetupWizard properties are now conditional on `WITH_GMS=true`; so is dexpreopt of `SystemUIGoogle` and `NexusLauncherRelease`. The GMS source itself is required only for explicit GMS builds.
+- Review additional independent defaults such as `TARGET_SUPPORTS_GOOGLE_RECORDER`, `TARGET_INCLUDE_STOCK_ARCORE`, `NexusLauncherResOverlay` and other packages/overlays. These have **not** been verified for GMS-free builds.
+- Test both choices against the *full* AOSP17 product dependency graph. Conditional property selection does not by itself guarantee a functioning pure AOSP product.
 - Validate proprietary licensing/privapp permissions and CTS/GMS constraints for a release.
 - Maintain GMS selection as an explicit build configuration; do not silently inject proprietary or unknown prebuilts.
 
