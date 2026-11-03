@@ -210,8 +210,18 @@ $(call inherit-product, vendor/aosp/config/bootanimation.mk)
 # Fonts
 $(call inherit-product, vendor/aosp/config/fonts.mk)
 
+# Proprietary GMS is deliberately opt-in. An AOSP-only bring-up must not
+# depend on unlicensed or unavailable Google packages.
+# For an explicitly GMS-enabled build, fail early if the licensed source is
+# absent rather than silently producing a misleading PE/GMS image.
+# Existing product configurations can enable this with WITH_GMS=true.
 # GMS
+ifeq ($(WITH_GMS),true)
+ifeq ($(wildcard vendor/gms/products/gms.mk),)
+$(error PixelExperience: WITH_GMS=true requires a licensed vendor/gms/products/gms.mk)
+endif
 $(call inherit-product, vendor/gms/products/gms.mk)
+endif
 
 # OTA
 #$(call inherit-product, vendor/aosp/config/ota.mk)
