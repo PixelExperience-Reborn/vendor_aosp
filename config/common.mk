@@ -3,36 +3,18 @@ $(call inherit-product, vendor/aosp/config/branding.mk)
 
 PRODUCT_BRAND ?= PixelExperience
 
-# GMS client-ID properties apply only when GMS is actually selected.
+# Android 17 owns ART, date/locale defaults and property placement.
+# Keep PE's historically intentional roaming default, but never export old
+# Dalvik debug knobs or a globally forced US date format.
+PRODUCT_SYSTEM_PROPERTIES += \
+    ro.com.android.dataroaming=false
+
+# Google client identification is product-scoped, and only included for
+# independently licensed GMS builds. Do not duplicate the same key in system
+# and product or assume proprietary Google apps are available.
 ifeq ($(WITH_GMS),true)
-ifeq ($(PRODUCT_GMS_CLIENTID_BASE),)
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    ro.com.google.clientidbase=android-google
-
 PRODUCT_PRODUCT_PROPERTIES += \
-    ro.com.google.clientidbase=android-google
-
-else
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    ro.com.google.clientidbase=$(PRODUCT_GMS_CLIENTID_BASE)
-
-PRODUCT_PRODUCT_PROPERTIES += \
-    ro.com.google.clientidbase=$(PRODUCT_GMS_CLIENTID_BASE)
-
-endif
-endif
-
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    dalvik.vm.debug.alloc=0 \
-    ro.com.android.dataroaming=false \
-    ro.com.android.dateformat=MM-dd-yyyy
-
-ifeq ($(WITH_GMS),true)
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    ro.url.legal=http://www.google.com/intl/%s/mobile/android/basic/phone-legal.html \
-    ro.url.legal.android_privacy=http://www.google.com/intl/%s/mobile/android/basic/privacy.html \
-    ro.error.receiver.system.apps=com.google.android.gms \
-    ro.atrace.core.services=com.google.android.gms,com.google.android.gms.ui,com.google.android.gms.persistent
+    ro.com.google.clientidbase=$(if $(strip $(PRODUCT_GMS_CLIENTID_BASE)),$(strip $(PRODUCT_GMS_CLIENTID_BASE)),android-google)
 endif
 
 # Android 17 owns ADB authorization and USB defaults by build variant.
@@ -47,9 +29,15 @@ PRODUCT_COPY_FILES += \
     vendor/aosp/config/permissions/org.lineageos.health.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/permissions/org.lineageos.health.xml
 endif
 
-# Copy all custom init rc files
+# Old PE updater is not part of the AOSP17 base graph. The directory and
+# module may be packaged only after a reviewed PE OTA implementation is chosen.
+ifeq ($(PE_A17_PORT_UPDATER),true)
+ifneq ($(filter OFFICIAL CI,$(CUSTOM_BUILD_TYPE)),)
+$(call inherit-product, vendor/aosp/config/ota.mk)
 PRODUCT_COPY_FILES += \
     vendor/aosp/prebuilt/common/etc/init/init.pixelexperience-updater.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/init.pixelexperience-updater.rc
+endif
+endif
 
 # Enable SIP+VoIP on all targets
 PRODUCT_COPY_FILES += \
@@ -60,7 +48,7 @@ PRODUCT_COPY_FILES += \
     frameworks/base/data/keyboards/Vendor_045e_Product_028e.kl:$(TARGET_COPY_OUT_PRODUCT)/usr/keylayout/Vendor_045e_Product_0719.kl
 
 # Enforce privapp-permissions whitelist
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+PRODUCT_SYSTEM_PROPERTIES += \
     ro.control_privapp_permissions=enforce
 
 # Power whitelist
@@ -75,25 +63,33 @@ PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD := false
 # leave less information available via JDWP.
 PRODUCT_MINIMIZE_JAVA_DEBUG_INFO := true
 
-# Charger
+# Android17 supplies its own charger resources. The original PE charger
+# animation and packaging remain available, but only after device/partition
+# validation confirms they are still appropriate.
+ifeq ($(PE_A17_PORT_LEGACY_CHARGER),true)
 PRODUCT_PACKAGES += \
     charger_res_images \
     product_charger_res_images \
     product_charger_res_images_vendor
+endif
 
-# Filesystems tools
+# Keep AOSP17's ext4 tooling. The old NTFS user-space module names and
+# fsck/mount semantics need a modern source/module ownership check.
+PRODUCT_PACKAGES += \
+    mke2fs
+ifeq ($(PE_A17_PORT_NTFS),true)
 PRODUCT_PACKAGES += \
     fsck.ntfs \
-    mke2fs \
     mkfs.ntfs \
     mount.ntfs
+endif
 
 # Storage manager
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+PRODUCT_SYSTEM_PROPERTIES += \
     ro.storage_manager.enabled=true
 
 # Media
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+PRODUCT_SYSTEM_PROPERTIES += \
     media.recorder.show_manufacturer_and_model=true
 
 # Static PE overlays must be reviewed for Android17 resource contracts.
@@ -126,8 +122,8 @@ PRODUCT_DEXPREOPT_SPEED_APPS += \
 endif
 endif
 
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    dalvik.vm.systemuicompilerfilter=speed
+# ART on Android17 owns SystemUI compiler filters via its release config.
+# Do not force the historical Dalvik setting from PE's common product.
 
 # SystemUI plugins
 PRODUCT_PACKAGES += \
@@ -173,12 +169,16 @@ PRODUCT_PRODUCT_PROPERTIES += \
     ro.atrace.core.services=com.google.android.gms,com.google.android.gms.ui,com.google.android.gms.persistent
 endif
 
-# TextClassifier
+# Text classification is provided through AOSP17's updatable ExtServices
+# and its versioned model sources. Old standalone model modules are not
+# guaranteed to exist in the Mainline-era Soong graph.
+ifeq ($(PE_A17_PORT_LEGACY_TEXTCLASSIFIER),true)
 PRODUCT_PACKAGES += \
-	libtextclassifier_annotator_en_model \
-	libtextclassifier_annotator_universal_model \
-	libtextclassifier_actions_suggestions_universal_model \
-	libtextclassifier_lang_id_model
+    libtextclassifier_annotator_en_model \
+    libtextclassifier_annotator_universal_model \
+    libtextclassifier_actions_suggestions_universal_model \
+    libtextclassifier_lang_id_model
+endif
 
 # Keep legacy Qualcomm vendorcompat libraries device-scoped. The base
 # cannot assume Android14 vendor blob ABI or old protobuf modules.
@@ -215,7 +215,7 @@ ifeq ($(PE_A17_PORT_FACE_UNLOCK),true)
 ifeq ($(TARGET_FACE_UNLOCK_SUPPORTED),true)
 PRODUCT_PACKAGES += \
     FaceUnlockService
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+PRODUCT_SYSTEM_PROPERTIES += \
     ro.face_unlock_service.enabled=$(TARGET_FACE_UNLOCK_SUPPORTED)
 PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.hardware.biometrics.face.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/android.hardware.biometrics.face.xml
@@ -250,8 +250,8 @@ endif
 $(call inherit-product, vendor/gms/products/gms.mk)
 endif
 
-# OTA
-#$(call inherit-product, vendor/aosp/config/ota.mk)
+# OTA module and init are paired above and only selected when the reviewed
+# AOSP17-compatible PE updater is actually available.
 
 # The old Pixel RRO group targets old system/Google packages. Preserve its
 # inventory, but require an explicit target-by-target AOSP17 port decision.
