@@ -25,8 +25,7 @@ endif
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     dalvik.vm.debug.alloc=0 \
     ro.com.android.dataroaming=false \
-    ro.com.android.dateformat=MM-dd-yyyy \
-    persist.sys.disable_rescue=true
+    ro.com.android.dateformat=MM-dd-yyyy
 
 ifeq ($(WITH_GMS),true)
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
@@ -36,23 +35,17 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.atrace.core.services=com.google.android.gms,com.google.android.gms.ui,com.google.android.gms.persistent
 endif
 
-ifeq ($(TARGET_BUILD_VARIANT),eng)
-# Disable ADB authentication
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += ro.adb.secure=0
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += persist.sys.usb.config=adb
-else
-# Enable ADB authentication
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += ro.adb.secure=1
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += persist.sys.usb.config=none
+# Android 17 owns ADB authorization and USB defaults by build variant.
+# Do not override ro.adb.secure or persist.sys.usb.config from the PE product.
+# Preserve AOSP17 Rescue Party and StrictMode behavior.
 
-# Disable extra StrictMode features on all non-engineering builds
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += persist.sys.strictmode.disable=true
-endif
-
-# Some permissions
+# Keep historical Lineage Health support for later HAL/permission review.
+# It is NOT a core dependency of the independent PE-Reborn platform.
+ifeq ($(PE_A17_PORT_LINEAGE_HEALTH_PERMISSIONS),true)
 PRODUCT_COPY_FILES += \
     vendor/aosp/config/permissions/privapp-permissions-lineagehw.xml:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/permissions/privapp-permissions-lineagehw.xml \
-    vendor/aosp/config/permissions/org.lineageos.health.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/permissions/org.lineageos.health.xml \
+    vendor/aosp/config/permissions/org.lineageos.health.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/permissions/org.lineageos.health.xml
+endif
 
 # Copy all custom init rc files
 PRODUCT_COPY_FILES += \
@@ -103,26 +96,34 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     media.recorder.show_manufacturer_and_model=true
 
-# Overlays
+# Static PE overlays must be reviewed for Android17 resource contracts.
+ifeq ($(PE_A17_PORT_LEGACY_OVERLAYS),true)
 PRODUCT_ENFORCE_RRO_EXCLUDED_OVERLAYS += \
     vendor/aosp/overlay
 
 PRODUCT_PACKAGE_OVERLAYS += \
     vendor/aosp/overlay/common
+endif
 
-# TouchGestures
+# Legacy TouchGestures requires a reviewed Android17 framework/service port.
+# Retain the historical package selection only as an explicit port candidate.
+ifeq ($(PE_A17_PORT_TOUCH_GESTURES),true)
 PRODUCT_PACKAGES += \
     TouchGestures
+endif
 
 # One Handed mode
 PRODUCT_PRODUCT_PROPERTIES += \
     ro.support_one_handed_mode?=true \
 
-# Proprietary Google app dexpreopt only when present.
+# GMS alone does not supply audited SystemUIGoogle/NexusLauncherRelease
+# modules. Never request preopt of absent or unreviewed privileged Google apps.
 ifeq ($(WITH_GMS),true)
+ifeq ($(PE_A17_PORT_GOOGLE_PRIV_APPS),true)
 PRODUCT_DEXPREOPT_SPEED_APPS += \
     SystemUIGoogle \
     NexusLauncherRelease
+endif
 endif
 
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
@@ -179,20 +180,25 @@ PRODUCT_PACKAGES += \
 	libtextclassifier_actions_suggestions_universal_model \
 	libtextclassifier_lang_id_model
 
-# Protobuf - Workaround for prebuilt Qualcomm HAL
+# Keep legacy Qualcomm vendorcompat libraries device-scoped. The base
+# cannot assume Android14 vendor blob ABI or old protobuf modules.
+ifeq ($(PE_A17_PORT_QCOM_VENDORCOMPAT),true)
 PRODUCT_PACKAGES += \
     libprotobuf-cpp-full-3.9.1-vendorcompat \
     libprotobuf-cpp-lite-3.9.1-vendorcompat
+endif
 
-# Camera
+# Camera2 remains the official Android17 default. Port Aperture as an
+# optional PE feature only after its CameraX/Soong and runtime validation.
+ifeq ($(PE_A17_PORT_APERTURE),true)
 ifneq ($(PRODUCT_NO_CAMERA),true)
 PRODUCT_PACKAGES += \
     Aperture
 endif
+endif
 
-# Use gestures by default
-PRODUCT_PRODUCT_PROPERTIES += \
-    ro.boot.vendor.overlay.theme=com.android.internal.systemui.navbar.gestural
+# AOSP17 navigation mode is selected through compatible resource overlays
+# and Settings, not by spoofing ro.boot.vendor.overlay.theme.
 
 # Pixel customization
 TARGET_SUPPORTS_GOOGLE_RECORDER ?= true
@@ -201,8 +207,11 @@ TARGET_INCLUDE_LIVE_WALLPAPERS ?= true
 TARGET_SUPPORTS_QUICK_TAP ?= false
 TARGET_SUPPORTS_CALL_RECORDING ?= true
 
-# Face Unlock
-TARGET_FACE_UNLOCK_SUPPORTED ?= true
+# The old FaceUnlockService is privileged and unported on AOSP17. Never
+# advertise face hardware or package the service from a generic product
+# without a separately reviewed implementation and a real HAL.
+TARGET_FACE_UNLOCK_SUPPORTED ?= false
+ifeq ($(PE_A17_PORT_FACE_UNLOCK),true)
 ifeq ($(TARGET_FACE_UNLOCK_SUPPORTED),true)
 PRODUCT_PACKAGES += \
     FaceUnlockService
@@ -211,10 +220,13 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
 PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.hardware.biometrics.face.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/permissions/android.hardware.biometrics.face.xml
 endif
+endif
 
-# NexusLauncher resources
+# Keep the former Google launcher overlay as an optional PE migration item.
+ifeq ($(PE_A17_PORT_LEGACY_OVERLAYS),true)
 PRODUCT_PACKAGES += \
     NexusLauncherResOverlay
+endif
 
 # Audio
 $(call inherit-product, vendor/aosp/config/audio.mk)
@@ -241,10 +253,14 @@ endif
 # OTA
 #$(call inherit-product, vendor/aosp/config/ota.mk)
 
-# RRO Overlays
+# The old Pixel RRO group targets old system/Google packages. Preserve its
+# inventory, but require an explicit target-by-target AOSP17 port decision.
+ifeq ($(PE_A17_PORT_LEGACY_OVERLAYS),true)
 $(call inherit-product, vendor/aosp/config/rro_overlays.mk)
+endif
 
-# Pixel Framework
-$(call inherit-product-if-exists, vendor/pixel-framework/config.mk)
+# The historical vendor/pixel-framework config.mk overrides AOSP SystemUI
+# and Settings with platform-signed APKs. Do not auto-include it in AOSP17.
+# Its source/ABI/license/security review is tracked separately.
 
 -include $(WORKSPACE)/build_env/image-auto-bits.mk
