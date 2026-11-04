@@ -32,3 +32,5 @@ jobs:
         run: bash tests/a17_envsetup_helpers_test.sh build/envsetup.sh
       - name: Test AOSP17 vendor hook integration
         run: bash tests/a17_vendorsetup_test.sh vendorsetup.sh
+      - name: Test AOSP17 product baseline and offline PE release helpers
+        run: python3 -m unittest discover -s tests -p 'a17_*_test.py' -v
