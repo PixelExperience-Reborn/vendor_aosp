@@ -19,6 +19,10 @@ on:
       - '.github/workflows/aosp17-product-source-owners.yml'
   workflow_dispatch:
 
+concurrency:
+  group: pe-a17-vendor-source-owners-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

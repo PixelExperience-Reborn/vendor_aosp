@@ -4,13 +4,28 @@ on:
   push:
     branches:
       - port/a17-vendor-envsetup-20261102
+    paths:
+      - 'vendorsetup.sh'
+      - 'build/**'
+      - 'config/**'
+      - 'fonts/**'
+      - 'tools/a17_*.py'
+      - 'tests/**'
+      - '.github/workflows/aosp17-envsetup-checks.yml'
   pull_request:
     paths:
-      - vendorsetup.sh
-      - build/envsetup.sh
-      - tests/a17_*envsetup*
-      - tests/a17_vendorsetup_test.sh
-      - .github/workflows/aosp17-envsetup-checks.yml
+      - 'vendorsetup.sh'
+      - 'build/**'
+      - 'config/**'
+      - 'fonts/**'
+      - 'tools/a17_*.py'
+      - 'tests/**'
+      - '.github/workflows/aosp17-envsetup-checks.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: pe-a17-vendor-host-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
