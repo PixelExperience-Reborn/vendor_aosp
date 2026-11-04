@@ -107,6 +107,66 @@ class HistoricalPeCommonOnAosp17(unittest.TestCase):
         self.assertNotEqual(p.returncode, 0)
         self.assertIn("WITH_GMS=true requires a licensed", p.stderr)
 
+    def test_new_default_excludes_obsolete_legacy_system_modules(self):
+        p = self.make()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        for legacy in ("charger_res_images", "product_charger_res_images",
+                       "fsck.ntfs", "mkfs.ntfs", "mount.ntfs",
+                       "libtextclassifier_annotator_en_model",
+                       "libtextclassifier_actions_suggestions_universal_model",
+                       "Updates", "init.pixelexperience-updater.rc"):
+            self.assertNotIn(legacy, p.stdout, legacy)
+        self.assertIn("mke2fs", p.stdout)
+        self.assertIn("QuickAccessWallet", p.stdout)
+
+    def test_legacy_options_remain_available_for_reviewed_ports(self):
+        p = self.make(PE_A17_PORT_LEGACY_CHARGER="true",
+                      PE_A17_PORT_NTFS="true",
+                      PE_A17_PORT_LEGACY_TEXTCLASSIFIER="true")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        for expected in ("charger_res_images", "product_charger_res_images",
+                         "fsck.ntfs", "mkfs.ntfs", "mount.ntfs",
+                         "libtextclassifier_annotator_en_model"):
+            self.assertIn(expected, p.stdout, expected)
+
+    def test_updater_follows_release_build_and_explicit_port(self):
+        p = self.make(PE_A17_PORT_UPDATER="true", CUSTOM_BUILD_TYPE="BETA")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertNotIn("init.pixelexperience-updater.rc", p.stdout)
+        self.assertNotIn("Updates", p.stdout)
+        p = self.make(PE_A17_PORT_UPDATER="true", CUSTOM_BUILD_TYPE="OFFICIAL")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("init.pixelexperience-updater.rc", p.stdout)
+        self.assertIn("Updates", p.stdout)
+
+    def test_android17_product_properties_do_not_duplicate_old_gms_props(self):
+        p = self.make(WITH_GMS="false")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        src = COMMON.read_text(encoding="utf-8")
+        self.assertNotIn("PRODUCT_SYSTEM_DEFAULT_PROPERTIES", src)
+        for legacy in ("dalvik.vm.debug.alloc=0",
+                       "dalvik.vm.systemuicompilerfilter=speed",
+                       "ro.com.android.dateformat=MM-dd-yyyy"):
+            self.assertNotIn(legacy, src)
+        self.assertEqual(p.stdout.count("ro.control_privapp_permissions=enforce"), 1)
+        self.assertNotIn("ro.com.google.clientidbase=", p.stdout)
+
+    def test_gms_product_properties_have_single_owner(self):
+        stub = self.root / "vendor/gms/products"
+        stub.mkdir(parents=True)
+        (stub / "gms.mk").write_text(
+            "PRODUCT_PACKAGES += CI_LICENSED_GMS_FIXTURE\n",
+            encoding="utf-8",
+        )
+        p = self.make(WITH_GMS="true")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        for key in ("ro.com.google.clientidbase=",
+                    "ro.url.legal=",
+                    "ro.error.receiver.system.apps=",
+                    "ro.atrace.core.services="):
+            self.assertEqual(p.stdout.count(key), 1, (key, p.stdout))
+        self.assertIn("CI_LICENSED_GMS_FIXTURE", p.stdout)
+
     def test_legacy_sources_retained_for_feature_by_feature_port(self):
         source = COMMON.read_text(encoding="utf-8")
         for marker in ("TouchGestures", "Aperture", "FaceUnlockService",
