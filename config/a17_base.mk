@@ -1,12 +1,13 @@
-# PixelExperience-Reborn — independent AOSP 17 platform-only product baseline.
+# PixelExperience-Reborn AOSP 17 — optional product-configuration smoke test.
 #
-# This is the entry point for a future native Android 17 PE product, NOT the
-# archived Android 14 vendor/aosp/config/common.mk and NOT a device tree.
-# Keep base bring-up independent of LineageOS product makefiles, Google APKs,
-# Qualcomm platform forks, legacy settings/face unlock/camera apps and RROs.
+# This is NOT the future complete PE-Reborn product definition or a substitute
+# for the historical PixelExperience common.mk feature inventory.
+# It exercises only PE branding, privileged-permission enforcement and licensed
+# GMS opt-in in a hermetic GNU Make fixture. No manifest profile or product
+# currently inherits this fragment. The full PE product remains to be ported
+# feature-by-feature and compiled against Android 17.
 #
-# Explicitly inherit this file from the native product definition once the
-# platform has passed Soong/Make and generic target validation.
+# Keep smoke tests independent of device trees and unavailable vendor modules.
 #
 # Copyright (C) 2026 PixelExperience-Reborn
 # SPDX-License-Identifier: Apache-2.0
