@@ -49,7 +49,7 @@ jobs:
             19c08e35e24bd5832bcef1c3038945e1e5c98a3c
           git -C .repo/manifests checkout -q --detach FETCH_HEAD
           test "$(git -C .repo/manifests rev-parse HEAD)" = \
-            "6f61168b4cb3bc4583001fd78f10895f80dd813c"
+            "19c08e35e24bd5832bcef1c3038945e1e5c98a3c"
           "$RUNNER_TEMP/repo" manifest -o "$RUNNER_TEMP/aosp17-effective.xml"
 
       - name: Targeted source-only sync of exact Android17 Launcher3
