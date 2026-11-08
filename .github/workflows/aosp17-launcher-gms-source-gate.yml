@@ -1,0 +1,75 @@
+name: AOSP17 native Launcher3QuickStep and licensed-GMS product gate
+
+on:
+  push:
+    branches:
+      - port/a17-vendor-envsetup-20261102
+    paths:
+      - 'config/common.mk'
+      - 'tests/a17_launcher_gms_contract_test.py'
+      - 'tools/a17_verify_launcher_source_contract.py'
+      - 'docs/ANDROID_17_LAUNCHER_GMS_SOURCE_CONTRACT.md'
+      - '.github/workflows/aosp17-launcher-gms-source-gate.yml'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  launcher-and-gms-product:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout staged PE-Reborn vendor source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          filter: blob:none
+
+      - name: Verify actual PE common/full/phone Make package and GMS policy
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'a17_*_test.py' -v
+
+      - name: Acquire official Google repo client and initialize AOSP17 reference graph
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 4 \
+            https://storage.googleapis.com/git-repo-downloads/repo \
+            -o "$RUNNER_TEMP/repo"
+          chmod 0755 "$RUNNER_TEMP/repo"
+          mkdir -p "$RUNNER_TEMP/aosp"
+          cd "$RUNNER_TEMP/aosp"
+          "$RUNNER_TEMP/repo" init -q --no-clone-bundle \
+            --partial-clone --clone-filter=blob:none \
+            -u https://github.com/PixelExperience-Reborn/manifest \
+            -b port/a17-aosp17-manifest-20261102 \
+            -m aosp17_reference.xml
+          git -C .repo/manifests fetch -q --depth 1 origin \
+            6f61168b4cb3bc4583001fd78f10895f80dd813c
+          git -C .repo/manifests checkout -q --detach FETCH_HEAD
+          test "$(git -C .repo/manifests rev-parse HEAD)" = \
+            "6f61168b4cb3bc4583001fd78f10895f80dd813c"
+          "$RUNNER_TEMP/repo" manifest -o "$RUNNER_TEMP/aosp17-effective.xml"
+
+      - name: Targeted source-only sync of exact Android17 Launcher3
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/aosp"
+          "$RUNNER_TEMP/repo" sync -c -j4 --no-tags --fail-fast \
+            --no-manifest-update packages/apps/Launcher3
+          test "$(git -C packages/apps/Launcher3 rev-parse HEAD)" = \
+            "c612e6ece389f21c40f8cb9cd9a4b44239f00009"
+
+      - name: Validate official Quickstep Soong module and HOME activity
+        run: |
+          set -euo pipefail
+          python3 tools/a17_verify_launcher_source_contract.py \
+            --checkout "$RUNNER_TEMP/aosp" \
+            --reference-manifest "$RUNNER_TEMP/aosp/.repo/manifests/aosp17_reference.xml"
+
+      - name: Validation scope
+        run: |
+          echo "Verified PE product Make choices and AOSP17 Launcher3 source contract."
+          echo "No Android target APK compiled; no full Soong/bootstrap/image."
+          echo "No proprietary GMS APKs or device/LineageOS source imported."
