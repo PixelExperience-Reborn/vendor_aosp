@@ -44,9 +44,9 @@ jobs:
             --partial-clone --clone-filter=blob:none \
             -u https://github.com/PixelExperience-Reborn/manifest \
             -b port/a17-aosp17-manifest-20261102 \
-            -m aosp17_reference.xml
+            -m aosp17_pe_envsetup.xml
           git -C .repo/manifests fetch -q --depth 1 origin \
-            6f61168b4cb3bc4583001fd78f10895f80dd813c
+            19c08e35e24bd5832bcef1c3038945e1e5c98a3c
           git -C .repo/manifests checkout -q --detach FETCH_HEAD
           test "$(git -C .repo/manifests rev-parse HEAD)" = \
             "6f61168b4cb3bc4583001fd78f10895f80dd813c"
@@ -57,9 +57,22 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/aosp"
           "$RUNNER_TEMP/repo" sync -c -j4 --no-tags --fail-fast \
-            --no-manifest-update packages/apps/Launcher3
+            --no-manifest-update packages/apps/Launcher3 vendor/aosp
           test "$(git -C packages/apps/Launcher3 rev-parse HEAD)" = \
             "c612e6ece389f21c40f8cb9cd9a4b44239f00009"
+          test "$(git -C vendor/aosp rev-parse HEAD)" = \
+            "38bf62440be54eb86b4f5c6ccc888e467b5a9a53"
+          python3 - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+          manifest = ET.parse(os.path.join(os.environ["RUNNER_TEMP"], "aosp17-effective.xml")).getroot()
+          projects = {p.get("path"): p.get("name") for p in manifest.iter("project")}
+          revisions = {p.get("path"): p.get("revision") for p in manifest.iter("project")}
+          assert projects["packages/apps/Launcher3"] == "platform/packages/apps/Launcher3"
+          assert projects["vendor/aosp"] == "vendor_aosp"
+          assert revisions["vendor/aosp"] == "38bf62440be54eb86b4f5c6ccc888e467b5a9a53"
+          print("PASS: effective staged PE manifest selects CI-reviewed vendor and official Android17 Launcher3")
+          PY
 
       - name: Validate official Quickstep Soong module and HOME activity
         run: |
@@ -70,6 +83,6 @@ jobs:
 
       - name: Validation scope
         run: |
-          echo "Verified PE product Make choices and AOSP17 Launcher3 source contract."
+          echo "Verified pinned staged PE vendor/source checkout plus official AOSP17 Launcher3 and Make choices."
           echo "No Android target APK compiled; no full Soong/bootstrap/image."
           echo "No proprietary GMS APKs or device/LineageOS source imported."
