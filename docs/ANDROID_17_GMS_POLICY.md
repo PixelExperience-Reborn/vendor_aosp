@@ -16,6 +16,14 @@ The Google app payload, keys and licensing are not stored or redistributed here.
 
 Three isolated GNU Make fixture scenarios were evaluated: non-GMS selection; explicit GMS selection with missing makefile (expected error); explicit GMS selection with existing makefile (expected import). **No actual Android17 product make parse/build, full package installation or CTS/GMS certification was performed.**
 
+## Native Launcher3 / Quickstep selection on PE common product
+
+The staged **PE common product** now explicitly selects `Launcher3QuickStep` from **official Google AOSP17** in `PRODUCT_PACKAGES`. This open-source HOME/Recents baseline is independent of `WITH_GMS` and remains present for both no-GMS and explicit-GMS product selection. The older PixelExperience Launcher3 GitHub fork is Android 8.1-only and is not imported.
+
+Original PE14 only placed `NexusLauncherRelease` and `SystemUIGoogle` in `PRODUCT_DEXPREOPT_SPEED_APPS`; that is **not** evidence of their `PRODUCT_PACKAGES` inclusion. Proprietary `vendor/gms` came from an external PE GitLab source and exact APK/provider and redistribution rights remain unverified. A real licensed GMS product that installs another HOME/Recents provider must explicitly resolve the competing launcher/Recents/privileged-app contracts before a release. GMS is still optional, not disabled or silently bundled.
+
+[Detailed Android17 Launcher3QuickStep and GMS source contract](ANDROID_17_LAUNCHER_GMS_SOURCE_CONTRACT.md). The new 7-case GNU Make suite checks product package decisions, and the targeted AOSP17 launcher source gate checks the actual SHA, Soong module and HOME manifest. **This is not proof of a compiled Launcher3 APK or a booted product.**
+
 ## Remaining work
 
 - The legacy `ro.com.google.clientidbase`, Google error/atrace receivers, legal links, OPA, Gboard and Google SetupWizard properties are now conditional on `WITH_GMS=true`; so is dexpreopt of `SystemUIGoogle` and `NexusLauncherRelease`. The GMS source itself is required only for explicit GMS builds.
