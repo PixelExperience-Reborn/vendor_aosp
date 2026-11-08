@@ -14,12 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Android 17: Do not implement or re-sign an OTA here. Require AOSP's
+# otapackage target and copy its finished archive byte-for-byte.
 CUSTOM_TARGET_PACKAGE := $(PRODUCT_OUT)/$(CUSTOM_VERSION).zip
 
-SHA256 := prebuilts/build-tools/path/$(HOST_PREBUILT_TAG)/sha256sum
-
 .PHONY: bacon
-bacon: $(INTERNAL_OTA_PACKAGE_TARGET)
-	$(hide) ln -f $(INTERNAL_OTA_PACKAGE_TARGET) $(CUSTOM_TARGET_PACKAGE)
-	$(hide) $(SHA256) $(CUSTOM_TARGET_PACKAGE) | sed "s|$(PRODUCT_OUT)/||" > $(CUSTOM_TARGET_PACKAGE).sha256sum
-	@echo "Package Complete: $(CUSTOM_TARGET_PACKAGE)" >&2
+bacon: otapackage
+	$(hide) python3 vendor/aosp/tools/a17_bacon_package.py \
+		--ota "$(INTERNAL_OTA_PACKAGE_TARGET)" \
+		--output "$(CUSTOM_TARGET_PACKAGE)"

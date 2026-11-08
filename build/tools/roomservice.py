@@ -1,317 +1,183 @@
-#!/usr/bin/env python
-# Copyright (C) 2012-2013, The CyanogenMod Project
-# Copyright (C) 2012-2015, SlimRoms Project
-# Copyright (C) 2016-2017, AOSiP
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""PE-Reborn Android 17: auditable, read-only mondrian roomservice.
 
-from __future__ import print_function
+Historical roomservice fetched arbitrary devices and recursively synchronized untrusted
+repositories. This constrained replacement does not download or modify anything.
+Device sources are supplied separately via the maintainer's local manifest.
+"""
 
-import base64
+from __future__ import annotations
+
+import argparse
 import json
-import netrc
-import os
+import re
 import sys
-
+from pathlib import Path
 from xml.etree import ElementTree
 
-try:
-    # For python3
-    import urllib.error
-    import urllib.parse
-    import urllib.request
-except ImportError:
-    # For python2
-    import imp
-    import urllib2
-    import urlparse
-    urllib = imp.new_module('urllib')
-    urllib.error = urllib2
-    urllib.parse = urlparse
-    urllib.request = urllib2
-
-DEBUG = False
-
-custom_local_manifest = ".repo/local_manifests/pixel.xml"
-custom_default_revision =  os.getenv('ROOMSERVICE_DEFAULT_BRANCH', 'fourteen')
-custom_dependencies = "aosp.dependencies"
-org_manifest = "pixel-devices"  # leave empty if org is provided in manifest
-org_display = "PixelExperience-Devices"  # needed for displaying
-
-github_auth = None
+PLATFORM_BRANCH = "seventeen"  # Informational only; never apply to device trees.
+DEVICE = "mondrian"
+DEVICE_PATH = "device/xiaomi/mondrian"
+DEPENDENCY_FILE = "aosp.dependencies"
+ALLOWED_DEPENDENCY_PATHS = frozenset({
+    "device/xiaomi/sm8450-common",
+    "vendor/xiaomi/mondrian",
+    "vendor/xiaomi/sm8450-common",
+    "kernel/xiaomi/sm8450",
+    "kernel/xiaomi/sm8450-modules",
+    "kernel/xiaomi/sm8450-devicetrees",
+})
+REPO_PATTERN = re.compile(r"LF52406/[A-Za-z0-9_.-]+\Z")
+REVISION_PATTERN = re.compile(r"[A-Za-z0-9_.\-/]+\Z")
+PRODUCT_PATTERN = re.compile(r"(?:aosp_)?mondrian(?:-[A-Za-z0-9_]+-(?:user|userdebug|eng))?\Z")
 
 
-local_manifests = '.repo/local_manifests'
-if not os.path.exists(local_manifests):
-    os.makedirs(local_manifests)
+class RoomserviceError(Exception):
+    """A validation failure; no operations have been performed."""
 
 
-def debug(*args, **kwargs):
-    if DEBUG:
-        print(*args, **kwargs)
-
-
-def add_auth(g_req):
-    global github_auth
-    if github_auth is None:
-        try:
-            auth = netrc.netrc().authenticators("api.github.com")
-        except (netrc.NetrcParseError, IOError):
-            auth = None
-        if auth:
-            github_auth = base64.b64encode(
-                ('%s:%s' % (auth[0], auth[2])).encode()
-            )
-        else:
-            github_auth = ""
-    if github_auth:
-        g_req.add_header("Authorization", "Basic %s" % github_auth)
-
-
-def indent(elem, level=0):
-    # in-place prettyprint formatter
-    i = "\n" + "  " * level
-    if len(elem):
-        if not elem.text or not elem.text.strip():
-            elem.text = i + "  "
-        if not elem.tail or not elem.tail.strip():
-            elem.tail = i
-        for elem in elem:
-            indent(elem, level+1)
-        if not elem.tail or not elem.tail.strip():
-            elem.tail = i
-    else:
-        if level and (not elem.tail or not elem.tail.strip()):
-            elem.tail = i
-
-def load_manifest(manifest):
-    try:
-        man = ElementTree.parse(manifest).getroot()
-    except (IOError, ElementTree.ParseError):
-        man = ElementTree.Element("manifest")
-    return man
-
-def get_from_manifest(device_name):
-    if os.path.exists(custom_local_manifest):
-        man = load_manifest(custom_local_manifest)
-        for local_path in man.findall("project"):
-            lp = local_path.get("path").strip('/')
-            if lp.startswith("device/") and lp.endswith("/" + device_name):
-                return lp
-    return None
-
-
-def is_in_manifest(project_path):
-    man = load_manifest(custom_local_manifest)
-    for local_path in man.findall("project"):
-        if local_path.get("path") == project_path:
-            return True
-    return False
-
-
-def add_to_manifest(repos, fallback_branch=None):
-    lm = load_manifest(custom_local_manifest)
-
-    for repo in repos:
-        repo_name = repo['repository']
-        repo_path = repo['target_path']
-        if 'branch' in repo:
-            repo_branch=repo['branch']
-        else:
-            repo_branch=custom_default_revision
-        if 'remote' in repo:
-            repo_remote=repo['remote']
-        elif "/" not in repo_name:
-            repo_remote=org_manifest
-        elif "/" in repo_name:
-            repo_remote="github"
-
-        if is_in_manifest(repo_path):
-            print('already exists: %s' % repo_path)
-            continue
-
-        print('Adding dependency:\nRepository: %s\nBranch: %s\nRemote: %s\nPath: %s\n' % (repo_name, repo_branch,repo_remote, repo_path))
-
-        project = ElementTree.Element(
-            "project",
-            attrib={"path": repo_path,
-                    "remote": repo_remote,
-                    "name": "%s" % repo_name}
+def validate_product(product: str) -> None:
+    if not PRODUCT_PATTERN.fullmatch(product):
+        raise RoomserviceError(
+            "Only mondrian is supported. Expected mondrian, aosp_mondrian or "
+            "aosp_mondrian-RELEASE-VARIANT; other devices are blocked."
         )
 
-        clone_depth = os.getenv('ROOMSERVICE_CLONE_DEPTH')
-        if clone_depth:
-            project.set('clone-depth', clone_depth)
 
-        if repo_branch is not None:
-            project.set('revision', repo_branch)
-        elif fallback_branch:
-            print("Using branch %s for %s" %
-                  (fallback_branch, repo_name))
-            project.set('revision', fallback_branch)
-        else:
-            print("Using default branch for %s" % repo_name)
-        if 'clone-depth' in repo:
-            print("Setting clone-depth to %s for %s" % (repo['clone-depth'], repo_name))
-            project.set('clone-depth', repo['clone-depth'])
-        lm.append(project)
-
-    indent(lm)
-    raw_xml = "\n".join(('<?xml version="1.0" encoding="UTF-8"?>',
-                         ElementTree.tostring(lm).decode()))
-
-    f = open(custom_local_manifest, 'w')
-    f.write(raw_xml)
-    f.close()
-
-_fetch_dep_cache = []
+def load_local_manifest_paths(root: Path) -> set[str]:
+    """Read local manifest project paths, never follow or write project sources."""
+    result: set[str] = set()
+    directory = root / ".repo" / "local_manifests"
+    if not directory.exists():
+        return result
+    if not directory.is_dir():
+        raise RoomserviceError(".repo/local_manifests is not a directory")
+    for file in sorted(directory.glob("*.xml")):
+        if file.is_symlink():
+            raise RoomserviceError(f"Symlinked local manifest is not accepted: {file.name}")
+        try:
+            manifest = ElementTree.parse(file).getroot()
+        except (OSError, ElementTree.ParseError) as exc:
+            raise RoomserviceError(f"Invalid local manifest {file.name}: {exc}") from exc
+        if manifest.tag != "manifest":
+            raise RoomserviceError(f"Unexpected XML root in {file.name}")
+        for project in manifest.findall("project"):
+            path = project.get("path") or project.get("name")
+            if path:
+                result.add(path)
+    return result
 
 
-def fetch_dependencies(repo_path, fallback_branch=None):
-    global _fetch_dep_cache
-    if repo_path in _fetch_dep_cache:
-        return
-    _fetch_dep_cache.append(repo_path)
-
-    print('Looking for dependencies')
-
-    dep_p = '/'.join((repo_path, custom_dependencies))
-    if os.path.exists(dep_p):
-        with open(dep_p) as dep_f:
-            dependencies = json.load(dep_f)
-    else:
-        dependencies = {}
-        print('%s has no additional dependencies.' % repo_path)
-
-    fetch_list = []
-    syncable_repos = []
-
-    for dependency in dependencies:
-        if not is_in_manifest(dependency['target_path']):
-            if not dependency.get('branch'):
-                dependency['branch'] = custom_default_revision
-
-            fetch_list.append(dependency)
-            syncable_repos.append(dependency['target_path'])
-        else:
-            print("Dependency already present in manifest: %s => %s" % (dependency['repository'], dependency['target_path']))
-
-    if fetch_list:
-        print('Adding dependencies to manifest\n')
-        add_to_manifest(fetch_list, fallback_branch)
-
-    if syncable_repos:
-        print('Syncing dependencies')
-        os.system('repo sync --force-sync --no-tags --current-branch --no-clone-bundle %s' % ' '.join(syncable_repos))
-
-    for deprepo in syncable_repos:
-        fetch_dependencies(deprepo)
-
-
-def has_branch(branches, revision):
-    return revision in (branch['name'] for branch in branches)
-
-
-def detect_revision(repo):
-    """
-    returns None if using the default revision, else return
-    the branch name if using a different revision
-    """
-    print("Checking branch info")
-    githubreq = urllib.request.Request(
-        repo['branches_url'].replace('{/branch}', ''))
-    add_auth(githubreq)
-    result = json.loads(urllib.request.urlopen(githubreq).read().decode())
-
-    print("Calculated revision: %s" % custom_default_revision)
-
-    if has_branch(result, custom_default_revision):
-        return custom_default_revision
-
-    print("Branch %s not found" % custom_default_revision)
-    sys.exit()
-
-
-def main():
-    global DEBUG
+def load_dependencies(root: Path) -> tuple[list[dict[str, str]], list[str]]:
+    """Validate declaration data as untrusted text, without syncing or changing XML."""
+    depfile = root / DEVICE_PATH / DEPENDENCY_FILE
+    if not depfile.is_file():
+        return [], []
+    if depfile.is_symlink():
+        raise RoomserviceError("Symlinked aosp.dependencies is not accepted")
     try:
-        depsonly = bool(sys.argv[2] in ['true', 1])
-    except IndexError:
-        depsonly = False
-
-    if os.getenv('ROOMSERVICE_DEBUG'):
-        DEBUG = True
-
-    product = sys.argv[1]
-    device = product[product.find("_") + 1:] or product
-
-    if depsonly:
-        repo_path = get_from_manifest(device)
-        if repo_path:
-            fetch_dependencies(repo_path)
-        else:
-            print("Trying dependencies-only mode on a "
-                  "non-existing device tree?")
-        sys.exit()
-
-    print("Device {0} not found. Attempting to retrieve device repository from "
-          "{1} Github (http://github.com/{1}).".format(device, org_display))
-
-    githubreq = urllib.request.Request(
-        "https://api.github.com/search/repositories?"
-        "q={0}+user:{1}+in:name+fork:true".format(device, org_display))
-    add_auth(githubreq)
-
-    repositories = []
-
-    try:
-        result = json.loads(urllib.request.urlopen(githubreq).read().decode())
-    except urllib.error.URLError:
-        print("Failed to search GitHub")
-        sys.exit(1)
-    except ValueError:
-        print("Failed to parse return data from GitHub")
-        sys.exit(1)
-    for res in result.get('items', []):
-        repositories.append(res)
-
-    for repository in repositories:
-        repo_name = repository['name']
-
-        if not (repo_name.startswith("device_") and
-                repo_name.endswith("_" + device)):
+        data = json.loads(depfile.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RoomserviceError(f"Cannot parse {DEVICE_PATH}/{DEPENDENCY_FILE}: {exc}") from exc
+    if not isinstance(data, list):
+        raise RoomserviceError("aosp.dependencies must be a JSON array")
+    validated = []
+    blocked = []
+    seen = set()
+    for i, item in enumerate(data):
+        if not isinstance(item, dict):
+            blocked.append(f"entry {i}: expected object")
             continue
-        print("Found repository: %s" % repository['name'])
+        repo, path, rev = item.get("repository"), item.get("target_path"), item.get("branch")
+        if not isinstance(path, str) or path not in ALLOWED_DEPENDENCY_PATHS:
+            blocked.append(f"entry {i}: target_path not approved for mondrian")
+            continue
+        if not isinstance(repo, str) or not REPO_PATTERN.fullmatch(repo):
+            blocked.append(f"entry {i}: repository must be an explicitly reviewed LF52406 fork")
+            continue
+        if not isinstance(rev, str) or not REVISION_PATTERN.fullmatch(rev) or rev.startswith(("/", "-")) or ".." in rev:
+            blocked.append(f"entry {i}: explicit, valid branch is required; never assume seventeen for device trees")
+            continue
+        if path in seen:
+            blocked.append(f"entry {i}: duplicate dependency target_path")
+            continue
+        seen.add(path)
+        validated.append({"repository": repo, "target_path": path, "branch": rev})
+    return validated, blocked
 
-        fallback_branch = detect_revision(repository)
-        manufacturer = repo_name[7:-(len(device)+1)]
-        repo_path = "device/%s/%s" % (manufacturer, device)
-        adding = [{'repository': repo_name, 'target_path': repo_path}]
 
-        add_to_manifest(adding, fallback_branch)
+def audit(root: Path, product: str, deps_only: bool) -> tuple[dict, int]:
+    validate_product(product)
+    root = root.resolve()
+    if not (root / ".repo").is_dir():
+        raise RoomserviceError("Run from a repo checkout root containing .repo, not from Termux home")
+    paths = load_local_manifest_paths(root)
+    tree_present = (root / DEVICE_PATH).is_dir()
+    declared = DEVICE_PATH in paths
+    result = {
+        "device": DEVICE,
+        "platform_branch": PLATFORM_BRANCH,
+        "device_path": DEVICE_PATH,
+        "device_tree_present": tree_present,
+        "local_manifest_declares_tree": declared,
+        "dependencies_only": deps_only,
+        "dependencies": [],
+        "blocked_dependencies": [],
+        "read_only": True,
+        "auto_discovery": False,
+        "auto_sync": False,
+    }
+    if not tree_present:
+        result["status"] = "missing-device-tree"
+        result["message"] = (
+            "mondrian tree is not checked out. Add its reviewed source to a LOCAL "
+            "manifest explicitly, then repo sync that path yourself. No other device trees "
+            "or unverified branches are selected automatically."
+        )
+        return result, 2
+    deps, blocked = load_dependencies(root)
+    result["dependencies"] = deps
+    result["blocked_dependencies"] = blocked
+    if blocked:
+        result["status"] = "dependencies-require-review"
+        result["message"] = "Unapproved or invalid dependencies detected; no sync or manifest edit performed."
+        return result, 3
+    result["status"] = "inspected"
+    result["message"] = (
+        "Source tree inspected. Dependencies are informational only; check Android 17 "
+        "compatibility before adding or syncing any of them."
+    )
+    return result, 0
 
-        print("Syncing repository to retrieve project.")
-        os.system('repo sync --force-sync --no-tags --current-branch --no-clone-bundle %s' % repo_path)
-        print("Repository synced!")
 
-        fetch_dependencies(repo_path, fallback_branch)
-        print("Done")
-        sys.exit()
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Read-only, mondrian-only PE roomservice for AOSP 17")
+    parser.add_argument("product", help="mondrian, aosp_mondrian or aosp_mondrian-RELEASE-VARIANT")
+    parser.add_argument("legacy_deps", nargs="?", choices=["true", "1"], help="legacy dependencies-only mode")
+    parser.add_argument("--deps-only", action="store_true", help="inspect dependencies without modifying source")
+    parser.add_argument("--json", action="store_true", help="output machine-readable audit")
+    parser.add_argument("--root", type=Path, default=Path.cwd(), help="checkout root (testing/debugging)")
+    args = parser.parse_args(argv)
+    try:
+        report, code = audit(args.root, args.product, args.deps_only or bool(args.legacy_deps))
+    except RoomserviceError as exc:
+        print(f"ROOMSERVICE BLOCKED: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(f"PE roomservice A17 [{report['device']}]: {report['status']}")
+        print(report["message"])
+        print(f"Local manifest: {'present' if report['local_manifest_declares_tree'] else 'no device entry'}")
+        print(f"Dependencies: {len(report['dependencies'])} validated, {len(report['blocked_dependencies'])} blocked")
+        for dep in report["dependencies"]:
+            print(f"  REVIEW: {dep['target_path']} <- {dep['repository']} @ {dep['branch']}")
+        for warning in report["blocked_dependencies"]:
+            print(f"  BLOCKED: {warning}")
+        print("No network requests, repo sync, or manifest writes were performed.")
+    return code
 
-    print("Repository for %s not found in the %s Github repository list."
-          % (device, org_display))
-    print("If this is in error, you may need to manually add it to your "
-          "%s" % custom_local_manifest)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
