@@ -112,6 +112,19 @@ endif
 PRODUCT_PRODUCT_PROPERTIES += \
     ro.support_one_handed_mode?=true \
 
+# Use the Android 17 AOSP HOME/Quickstep module for the independent PE
+# product. Its Android.bp lives in platform/packages/apps/Launcher3 and
+# declares privileged system_ext placement, HOME overrides and the required
+# launcher permission/protolog modules. The historical PE Launcher3 fork is
+# Android 8.1 and is NOT a replacement for the official Android 17 module.
+# Selecting it here is separate from an eventual product build/runtime test.
+# Always provide an open-source HOME baseline; WITH_GMS does not guarantee
+# that a verified, licensed Pixel Launcher is present in the source graph.
+# When a real Google launcher product is qualified, its HOME/Quickstep and
+# privileged-app packaging must be reconciled explicitly before release.
+PRODUCT_PACKAGES += \
+    Launcher3QuickStep
+
 # GMS alone does not supply audited SystemUIGoogle/NexusLauncherRelease
 # modules. Never request preopt of absent or unreviewed privileged Google apps.
 ifeq ($(WITH_GMS),true)
