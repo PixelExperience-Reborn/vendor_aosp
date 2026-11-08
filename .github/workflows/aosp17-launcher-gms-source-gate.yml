@@ -52,6 +52,27 @@ jobs:
             "19c08e35e24bd5832bcef1c3038945e1e5c98a3c"
           "$RUNNER_TEMP/repo" manifest -o "$RUNNER_TEMP/aosp17-effective.xml"
 
+      - name: Validate all 25 PE manifest source profiles and 135 audit rows
+        run: |
+          set -euo pipefail
+          manifest="$RUNNER_TEMP/aosp/.repo/manifests"
+          python3 "$manifest/tools/validate_aosp17_base_profiles.py"
+          python3 -m unittest discover -s "$manifest/tools" \
+            -p test_aosp17_manifest_entrypoint.py -v
+          python3 "$manifest/tools/validate_135_repository_matrix.py"
+
+      - name: Cross-check the archived PE14 185 original projects and Launcher3 ownership
+        run: |
+          set -euo pipefail
+          git init -q "$RUNNER_TEMP/original-pe14-manifest"
+          git -C "$RUNNER_TEMP/original-pe14-manifest" remote add origin \
+            https://github.com/PixelExperience/manifest.git
+          git -C "$RUNNER_TEMP/original-pe14-manifest" fetch -q --depth 1 origin \
+            136aee696422bda841eb5c6a3c9279bbb6bbef02
+          git -C "$RUNNER_TEMP/original-pe14-manifest" checkout -q --detach FETCH_HEAD
+          python3 "$RUNNER_TEMP/aosp/.repo/manifests/tools/audit_original_pe_fourteen_coverage.py" \
+            --original "$RUNNER_TEMP/original-pe14-manifest"
+
       - name: Targeted source-only sync of exact Android17 Launcher3
         run: |
           set -euo pipefail
