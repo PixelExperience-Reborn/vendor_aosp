@@ -210,19 +210,24 @@ gralloc_10_usage_bits {
     },
 }
 
+// Android 17 removed export_cflags from cc modules: flags can no longer be
+// exported to dependents. These defaults now set cflags on the modules that
+// list them (e.g. libgralloccore). Header-only users such as
+// display_intf_headers must propagate the gralloc handle layout through a
+// configuration header when the Qualcomm display HAL is ported to Android 17.
 soong_config_module_type {
     name: "gralloc_handle_custom_content_md_reserved_size",
     module_type: "cc_defaults",
     config_namespace: "customGlobalVars",
     bool_variables: ["gralloc_handle_has_custom_content_md_reserved_size"],
-    properties: ["export_cflags"],
+    properties: ["cflags"],
 }
 
 gralloc_handle_custom_content_md_reserved_size {
     name: "gralloc_handle_has_custom_content_md_reserved_size_defaults",
     soong_config_variables: {
         gralloc_handle_has_custom_content_md_reserved_size: {
-            export_cflags: ["-DGRALLOC_HANDLE_HAS_CUSTOM_CONTENT_MD_RESERVED_SIZE"],
+            cflags: ["-DGRALLOC_HANDLE_HAS_CUSTOM_CONTENT_MD_RESERVED_SIZE"],
         },
     },
 }
@@ -232,14 +237,14 @@ soong_config_module_type {
     module_type: "cc_defaults",
     config_namespace: "customGlobalVars",
     bool_variables: ["gralloc_handle_has_reserved_size"],
-    properties: ["export_cflags"],
+    properties: ["cflags"],
 }
 
 gralloc_handle_reserved_size {
     name: "gralloc_handle_has_reserved_size_defaults",
     soong_config_variables: {
         gralloc_handle_has_reserved_size: {
-            export_cflags: ["-DGRALLOC_HANDLE_HAS_RESERVED_SIZE"],
+            cflags: ["-DGRALLOC_HANDLE_HAS_RESERVED_SIZE"],
         },
     },
 }
@@ -249,14 +254,14 @@ soong_config_module_type {
     module_type: "cc_defaults",
     config_namespace: "customGlobalVars",
     bool_variables: ["gralloc_handle_has_ubwcp_format"],
-    properties: ["export_cflags"],
+    properties: ["cflags"],
 }
 
 gralloc_handle_ubwcp_format {
     name: "gralloc_handle_has_ubwcp_format_defaults",
     soong_config_variables: {
         gralloc_handle_has_ubwcp_format: {
-            export_cflags: ["-DGRALLOC_HANDLE_HAS_UBWCP_FORMAT"],
+            cflags: ["-DGRALLOC_HANDLE_HAS_UBWCP_FORMAT"],
         },
     },
 }
@@ -356,18 +361,15 @@ soong_config_module_type {
     module_type: "cc_defaults",
     config_namespace: "customGlobalVars",
     value_variables: ["bootloader_message_offset"],
-    properties: [
-        "cflags",
-        "export_cflags",
-    ],
+    properties: ["cflags"],
 }
 
 bootloader_message_offset {
     name: "bootloader_message_offset_defaults",
     soong_config_variables: {
         bootloader_message_offset: {
+            // export_cflags no longer exists on Android 17.
             cflags: ["-DBOARD_RECOVERY_BLDRMSG_OFFSET=%s"],
-            export_cflags: ["-DBOARD_RECOVERY_BLDRMSG_OFFSET=%s"],
         },
     },
 }
