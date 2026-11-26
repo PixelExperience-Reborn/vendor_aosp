@@ -250,17 +250,15 @@ $(call inherit-product, vendor/aosp/config/bootanimation.mk)
 # Fonts
 $(call inherit-product, vendor/aosp/config/fonts.mk)
 
-# Proprietary GMS is deliberately opt-in. An AOSP-only bring-up must not
-# depend on unlicensed or unavailable Google packages.
-# For an explicitly GMS-enabled build, fail early if the licensed source is
-# absent rather than silently producing a misleading PE/GMS image.
-# Existing product configurations can enable this with WITH_GMS=true.
-# GMS
+# Google apps: MindTheGapps for Android 17 (vendor/gapps, branch
+# cinnamonbun, pinned in the manifest). A product ships them with
+# WITH_GMS := true; the arch defaults to arm64.
 ifeq ($(WITH_GMS),true)
-ifeq ($(wildcard vendor/gms/products/gms.mk),)
-$(error PixelExperience: WITH_GMS=true requires a licensed vendor/gms/products/gms.mk)
+TARGET_GAPPS_ARCH ?= arm64
+ifeq ($(wildcard vendor/gapps/$(TARGET_GAPPS_ARCH)/$(TARGET_GAPPS_ARCH)-vendor.mk),)
+$(error PixelExperience: WITH_GMS=true needs MindTheGapps in vendor/gapps)
 endif
-$(call inherit-product, vendor/gms/products/gms.mk)
+$(call inherit-product, vendor/gapps/$(TARGET_GAPPS_ARCH)/$(TARGET_GAPPS_ARCH)-vendor.mk)
 endif
 
 # OTA module and init are paired above and only selected when the reviewed

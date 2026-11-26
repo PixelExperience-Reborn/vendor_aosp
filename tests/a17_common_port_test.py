@@ -105,7 +105,7 @@ class HistoricalPeCommonOnAosp17(unittest.TestCase):
     def test_gms_without_license_fails_and_does_not_enable_privapps_by_default(self):
         p = self.make(WITH_GMS="true")
         self.assertNotEqual(p.returncode, 0)
-        self.assertIn("WITH_GMS=true requires a licensed", p.stderr)
+        self.assertIn("WITH_GMS=true needs MindTheGapps in vendor/gapps", p.stderr)
 
     def test_new_default_excludes_obsolete_legacy_system_modules(self):
         p = self.make()
@@ -152,9 +152,9 @@ class HistoricalPeCommonOnAosp17(unittest.TestCase):
         self.assertNotIn("ro.com.google.clientidbase=", p.stdout)
 
     def test_gms_product_properties_have_single_owner(self):
-        stub = self.root / "vendor/gms/products"
+        stub = self.root / "vendor/gapps/arm64"
         stub.mkdir(parents=True)
-        (stub / "gms.mk").write_text(
+        (stub / "arm64-vendor.mk").write_text(
             "PRODUCT_PACKAGES += CI_LICENSED_GMS_FIXTURE\n",
             encoding="utf-8",
         )

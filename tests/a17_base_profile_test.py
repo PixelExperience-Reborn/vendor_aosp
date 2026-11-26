@@ -24,9 +24,9 @@ class Aosp17BaseProduct(unittest.TestCase):
 
     def evaluate(self, *, with_gms=False, with_stub=False):
         if with_stub:
-            p = self.cwd / "vendor/gms/products"
+            p = self.cwd / "vendor/gapps/arm64"
             p.mkdir(parents=True)
-            (p / "gms.mk").write_text(
+            (p / "arm64-vendor.mk").write_text(
                 "PRODUCT_PACKAGES += CI_DUMMY_GMS_SOURCE_MARKER\n",
                 encoding="utf-8",
             )
@@ -66,7 +66,7 @@ class Aosp17BaseProduct(unittest.TestCase):
     def test_missing_licensed_gms_fails_fast(self):
         p = self.evaluate(with_gms=True)
         self.assertNotEqual(p.returncode, 0)
-        self.assertIn("WITH_GMS=true requires a licensed", p.stderr)
+        self.assertIn("WITH_GMS=true needs MindTheGapps in vendor/gapps", p.stderr)
 
     def test_gms_is_explicit_opt_in_and_separately_sourced(self):
         p = self.evaluate(with_gms=True, with_stub=True)

@@ -25,9 +25,9 @@ class Aosp17LauncherGmsContract(unittest.TestCase):
 
     def product(self, variables=None, gms_fixture=None, product="common"):
         if gms_fixture is not None:
-            p = self.work / "vendor/gms/products"
+            p = self.work / "vendor/gapps/arm64"
             p.mkdir(parents=True, exist_ok=True)
-            (p / "gms.mk").write_text(gms_fixture, encoding="utf-8")
+            (p / "arm64-vendor.mk").write_text(gms_fixture, encoding="utf-8")
         var = variables or {}
         source = {
             "common": "vendor/aosp/config/common.mk",
@@ -79,7 +79,7 @@ class Aosp17LauncherGmsContract(unittest.TestCase):
                                "NexusLauncherRelease", "SystemUIGoogle",
                                "PixelLauncherCustomOverlay", "NexusLauncherResOverlay"):
                     self.assertNotIn(denied, packages)
-                self.assertNotIn("vendor/gms", process.stdout)
+                self.assertNotIn("vendor/gapps", process.stdout)
                 self.assertNotIn("ro.com.google.clientidbase=", process.stdout)
                 self.assertNotIn("NexusLauncherRelease",
                                  self.line_tokens(process.stdout, "DEXPREOPT"))
@@ -97,7 +97,7 @@ class Aosp17LauncherGmsContract(unittest.TestCase):
     def test_gms_flag_with_missing_license_source_fails_fast(self):
         p = self.product({"WITH_GMS": "true"})
         self.assertNotEqual(p.returncode, 0)
-        self.assertIn("requires a licensed vendor/gms/products/gms.mk", p.stderr)
+        self.assertIn("needs MindTheGapps in vendor/gapps", p.stderr)
 
     def test_gms_source_is_opt_in_and_native_home_remains_available(self):
         stub = "PRODUCT_PACKAGES += CI_GMS_FIXTURE\n"
@@ -152,7 +152,7 @@ class Aosp17LauncherGmsContract(unittest.TestCase):
     def test_dont_reintroduce_old_launcher_or_proprietary_prebuilts(self):
         text = COMMON.read_text(encoding="utf-8")
         self.assertIn("Launcher3QuickStep", text)
-        self.assertIn("vendor/gms/products/gms.mk", text)
+        self.assertIn("vendor/gapps/$(TARGET_GAPPS_ARCH)/$(TARGET_GAPPS_ARCH)-vendor.mk", text)
         self.assertNotIn("packages_apps_Launcher3", text)
         self.assertNotIn("git clone", text)
         self.assertNotIn("curl ", text)

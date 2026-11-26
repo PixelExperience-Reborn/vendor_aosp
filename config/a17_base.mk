@@ -22,13 +22,13 @@ PRODUCT_BRAND ?= PixelExperience
 PRODUCT_SYSTEM_PROPERTIES += \
     ro.control_privapp_permissions=enforce
 
-# Google components are optional and can only be built from a separately
-# authorized, licensed source. Never assume proprietary Google packages exist.
+# Google apps: MindTheGapps (vendor/gapps), only with WITH_GMS := true.
 ifeq ($(WITH_GMS),true)
-ifeq ($(wildcard vendor/gms/products/gms.mk),)
-$(error PE-Reborn AOSP17: WITH_GMS=true requires a licensed vendor/gms/products/gms.mk)
+TARGET_GAPPS_ARCH ?= arm64
+ifeq ($(wildcard vendor/gapps/$(TARGET_GAPPS_ARCH)/$(TARGET_GAPPS_ARCH)-vendor.mk),)
+$(error PixelExperience: WITH_GMS=true needs MindTheGapps in vendor/gapps)
 endif
-$(call inherit-product, vendor/gms/products/gms.mk)
+$(call inherit-product, vendor/gapps/$(TARGET_GAPPS_ARCH)/$(TARGET_GAPPS_ARCH)-vendor.mk)
 endif
 
 # Intentionally no PRODUCT_PACKAGES, overlays, HALs, SELinux rules, OTA
