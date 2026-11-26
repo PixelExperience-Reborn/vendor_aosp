@@ -1,0 +1,9 @@
+# PixelExperience-Reborn contributions to the AOSP 17 release
+# configurations of build/release (build/make reads every
+# vendor/*/release/release_config_map.textproto).
+#
+# cp2a is the release configuration of android-17.0.0_r1. Our tree adds the
+# Android security fixes of android-security-17.0.0_r3 (security bulletin up
+# to September 2026) to every project they touch, so the platform security
+# patch level of cp2a is raised accordingly. See README.md.
+default_containers: "system"
