@@ -58,7 +58,8 @@ function _pe_breakfast_choose_product()
     local product_list product release_list chosen_release
     local item
     local products=() releases=()
-    local release="${PE_LUNCH_RELEASE:-trunk_staging}"
+    # cp2a is the release configuration of the stable android-17.0.0_r1.
+    local release="${PE_LUNCH_RELEASE:-cp2a}"
     local variant=userdebug
 
     if ! declare -F list_products >/dev/null 2>&1; then
@@ -145,7 +146,18 @@ function brunch()
         echo "PixelExperience: mka is not available; cannot build bacon." >&2
         return 127
     fi
+    local start=$SECONDS
     mka bacon
+    local ret=$?
+    local package="$(get_build_var PRODUCT_OUT)/$(get_build_var CUSTOM_VERSION).zip"
+    local info=("Device=$(get_build_var TARGET_DEVICE)" "Time=$(_pe_duration $((SECONDS - start)))")
+    if [[ $ret -eq 0 && -f "$package" ]]; then
+        info+=("Package=$package"
+               "Size=$(du -h "$package" | cut -f1)"
+               "SHA-256=$(sha256sum "$package" | cut -d' ' -f1)")
+    fi
+    PE_BANNER_STATUS=$ret _pe_banner "PixelExperience build finished" "${info[@]}"
+    return $ret
 }
 
 function breakfast()
@@ -155,7 +167,8 @@ function breakfast()
     # Do not override the platform's lunch function or its release configuration.
     local target="${1:-}"
     local variant="userdebug"
-    local release="${PE_LUNCH_RELEASE:-trunk_staging}"
+    # cp2a is the release configuration of the stable android-17.0.0_r1.
+    local release="${PE_LUNCH_RELEASE:-cp2a}"
     local product
 
     if [[ $# -eq 0 ]]; then
@@ -215,7 +228,40 @@ function breakfast()
     fi
 
     # AOSP 17 accepts lunch PRODUCT RELEASE VARIANT; preserve its validation.
-    lunch "$product" "$release" "$variant"
+    lunch "$product" "$release" "$variant" || return $?
+    _pe_banner "PixelExperience build configuration" \
+        "Device=$(get_build_var TARGET_DEVICE)" \
+        "Version=$(get_build_var CUSTOM_VERSION)" \
+        "Android=$(get_build_var PLATFORM_VERSION) ($(get_build_var TARGET_RELEASE))" \
+        "Security patch=$(get_build_var PLATFORM_SECURITY_PATCH)" \
+        "Build type=$(get_build_var TARGET_BUILD_VARIANT)" \
+        "Build ID=$(get_build_var BUILD_ID)"
+}
+
+# vendor/aosp/tools, found from this file so it works from any tree.
+_PE_TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../tools" 2>/dev/null && pwd)" || :
+
+# The PixelExperience-Reborn banner: _pe_banner TITLE [KEY=VALUE...]
+# (PE_BANNER_STATUS, when set, adds SUCCESS/FAILED to the title).
+function _pe_banner()
+{
+    local title="$1"
+    shift
+    local args=(--title "$title")
+    local item
+    for item in "$@"; do
+        args+=(--info "$item")
+    done
+    if [[ -n "${PE_BANNER_STATUS:-}" ]]; then
+        args+=(--status "$PE_BANNER_STATUS")
+    fi
+    python3 "$_PE_TOOLS_DIR/pe_banner.py" "${args[@]}"
+}
+
+function _pe_duration()
+{
+    local total=$1
+    printf "%02d:%02d:%02d" $((total / 3600)) $(((total % 3600) / 60)) $((total % 60))
 }
 
 alias bib=breakfast

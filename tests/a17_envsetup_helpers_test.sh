@@ -21,6 +21,17 @@ lunch() {
 mka() {
     MKA_CALLS+=("$*")
 }
+# Build variables of a configured product.
+get_build_var() {
+    case "$1" in
+        TARGET_DEVICE) echo mondrian ;;
+        CUSTOM_VERSION) echo PixelExperience_mondrian-17.0-20261126-1200-BETA ;;
+        PLATFORM_VERSION) echo 17 ;;
+        TARGET_RELEASE) echo cp2a ;;
+        PRODUCT_OUT) echo /nonexistent ;;
+        *) echo "" ;;
+    esac
+}
 
 assert_lunch() {
     local expected="$1"
@@ -30,22 +41,29 @@ assert_lunch() {
     }
 }
 
-breakfast mondrian
-assert_lunch 'aosp_mondrian|trunk_staging|userdebug'
+banner_file="$(mktemp)"
+trap 'rm -f "$banner_file"' EXIT
+breakfast mondrian > "$banner_file"
+banner="$(cat "$banner_file")"
+assert_lunch 'aosp_mondrian|cp2a|userdebug'
+[[ "$banner" == *'R E B O R N'* && "$banner" == *'PixelExperience_mondrian-17.0-20261126-1200-BETA'* ]] || {
+    echo 'FAIL: breakfast did not print the PE banner with the build version' >&2
+    exit 1
+}
 
-breakfast mondrian user
-assert_lunch 'aosp_mondrian|trunk_staging|user'
+breakfast mondrian user >/dev/null
+assert_lunch 'aosp_mondrian|cp2a|user'
 
-breakfast mondrian eng a17_release
+breakfast mondrian eng a17_release >/dev/null
 assert_lunch 'aosp_mondrian|a17_release|eng'
 
-breakfast aosp_mondrian-userdebug
-assert_lunch 'aosp_mondrian|trunk_staging|userdebug'
+breakfast aosp_mondrian-userdebug >/dev/null
+assert_lunch 'aosp_mondrian|cp2a|userdebug'
 
-breakfast aosp_mondrian-trunk_staging-user
+breakfast aosp_mondrian-trunk_staging-user >/dev/null
 assert_lunch 'aosp_mondrian|trunk_staging|user'
 
-PE_LUNCH_RELEASE=beta breakfast mondrian
+PE_LUNCH_RELEASE=beta breakfast mondrian >/dev/null
 assert_lunch 'aosp_mondrian|beta|userdebug'
 
 # AOSP 17 removed the zero-argument lunch menu. In a non-interactive
@@ -77,9 +95,13 @@ if breakfast mondrian badvariant >/dev/null 2>&1; then echo 'FAIL: accepted inva
 if breakfast mondrian user bad-release >/dev/null 2>&1; then echo 'FAIL: accepted invalid release' >&2; exit 1; fi
 if breakfast mondrian userdebug foo extra >/dev/null 2>&1; then echo 'FAIL: accepted excess args' >&2; exit 1; fi
 
-brunch mondrian
-assert_lunch 'aosp_mondrian|trunk_staging|userdebug'
+brunch mondrian > "$banner_file"
+assert_lunch 'aosp_mondrian|cp2a|userdebug'
 [[ "${MKA_CALLS[-1]}" == bacon ]] || { echo 'FAIL: brunch target' >&2; exit 1; }
+grep -q 'PixelExperience build finished' "$banner_file" && grep -q 'Time' "$banner_file" || {
+    echo 'FAIL: brunch did not print the finish banner with the build time' >&2
+    exit 1
+}
 
 local_before="${#MKA_CALLS[@]}"
 LUNCH_FAIL=1
