@@ -229,11 +229,16 @@ function breakfast()
 
     # AOSP 17 accepts lunch PRODUCT RELEASE VARIANT; preserve its validation.
     lunch "$product" "$release" "$variant" || return $?
+    # The device codename, for the adb helpers below (eat, dddclient, ...).
+    CUSTOM_BUILD="${TARGET_PRODUCT:-$product}"
+    export CUSTOM_BUILD="${CUSTOM_BUILD#aosp_}"
     _pe_banner "PixelExperience build configuration" \
         "Device=$(get_build_var TARGET_DEVICE)" \
         "Version=$(get_build_var CUSTOM_VERSION)" \
-        "Android=$(get_build_var PLATFORM_VERSION) ($(get_build_var TARGET_RELEASE))" \
+        "Android=$(get_build_var PLATFORM_VERSION) (${TARGET_RELEASE:-$release})" \
         "Security patch=$(get_build_var PLATFORM_SECURITY_PATCH)" \
+        "Google apps=$(get_build_var CUSTOM_GAPPS)" \
+        "Maintainer=$(get_build_var CUSTOM_MAINTAINER)" \
         "Build type=$(get_build_var TARGET_BUILD_VARIANT)" \
         "Build ID=$(get_build_var BUILD_ID)"
 }

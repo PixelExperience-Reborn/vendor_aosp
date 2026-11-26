@@ -36,7 +36,41 @@ class VersioningTests(unittest.TestCase):
         out = self.evaluate()
         self.assertIn("PixelExperience_mondrian-17.0-", out)
         self.assertIn("org.pixelexperience.version=seventeen", out)
-        self.assertIn("org.pixelexperience.build_type=BETA", out)
+        self.assertIn("org.pixelexperience.build_type=UNOFFICIAL", out)
+
+    def test_device_from_product(self):
+        with tempfile.TemporaryDirectory() as td:
+            mk = Path(td) / "Makefile"
+            mk.write_text(
+                "TARGET_PRODUCT := aosp_mondrian\n"
+                "CUSTOM_BUILD_TYPE := OFFICIAL\n"
+                "SOURCE_DATE_EPOCH := 0\n"
+                f"include {BRANDING}\n"
+                "all:\n"
+                "\t@printf '%s\\n' '$(CUSTOM_VERSION)'\n",
+                encoding="utf-8",
+            )
+            p = subprocess.run(["make", "--no-print-directory", "-s", "-f", str(mk)],
+                               text=True, capture_output=True, timeout=15)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertEqual(p.stdout.strip(), "PixelExperience_mondrian-17.0-19700101-0000-OFFICIAL")
+
+    def test_maintainer_property(self):
+        with tempfile.TemporaryDirectory() as td:
+            mk = Path(td) / "Makefile"
+            mk.write_text(
+                "TARGET_PRODUCT := aosp_mondrian\n"
+                "CUSTOM_MAINTAINER := LF5\n"
+                f"include {BRANDING}\n"
+                "all:\n"
+                "\t@printf '%s\\n' '$(PRODUCT_SYSTEM_PROPERTIES)'\n",
+                encoding="utf-8",
+            )
+            p = subprocess.run(["make", "--no-print-directory", "-s", "-f", str(mk)],
+                               text=True, capture_output=True, timeout=15)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertIn("org.pixelexperience.maintainer=LF5", p.stdout)
+        self.assertNotIn("org.pixelexperience.maintainer=", self.evaluate())
 
     def test_single_epoch_used(self):
         out = self.evaluate(epoch="0")

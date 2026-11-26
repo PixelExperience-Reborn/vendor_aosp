@@ -46,6 +46,8 @@ trap 'rm -f "$banner_file"' EXIT
 breakfast mondrian > "$banner_file"
 banner="$(cat "$banner_file")"
 assert_lunch 'aosp_mondrian|cp2a|userdebug'
+[[ "$CUSTOM_BUILD" == mondrian ]] || { echo "FAIL: CUSTOM_BUILD is <$CUSTOM_BUILD>" >&2; exit 1; }
+[[ "$banner" == *'17 (cp2a)'* ]] || { echo 'FAIL: banner without the release' >&2; exit 1; }
 [[ "$banner" == *'R E B O R N'* && "$banner" == *'PixelExperience_mondrian-17.0-20261126-1200-BETA'* ]] || {
     echo 'FAIL: breakfast did not print the PE banner with the build version' >&2
     exit 1

@@ -259,6 +259,8 @@ ifeq ($(wildcard vendor/gapps/$(TARGET_GAPPS_ARCH)/$(TARGET_GAPPS_ARCH)-vendor.m
 $(error PixelExperience: WITH_GMS=true needs MindTheGapps in vendor/gapps)
 endif
 $(call inherit-product, vendor/gapps/$(TARGET_GAPPS_ARCH)/$(TARGET_GAPPS_ARCH)-vendor.mk)
+# Shown in the build information (lunch and the build server banners).
+CUSTOM_GAPPS := MindTheGapps
 endif
 
 # OTA module and init are paired above and only selected when the reviewed

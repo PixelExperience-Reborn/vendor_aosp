@@ -1,6 +1,12 @@
 # PixelExperience naming metadata. Android platform version and patch level
 # are controlled separately by the pinned AOSP 17 platform/build/release sources.
-CUSTOM_BUILD_TYPE ?= BETA
+# Device codename, as PixelExperience names its builds: the product
+# aosp_<device> builds <device> (PE 14 exported it from build/envsetup.sh).
+CUSTOM_BUILD ?= $(patsubst aosp_%,%,$(TARGET_PRODUCT))
+
+# OFFICIAL for the builds of the PixelExperience-Reborn build server (its
+# build script sets it), UNOFFICIAL for everyone else.
+CUSTOM_BUILD_TYPE ?= UNOFFICIAL
 
 # One UTC epoch feeds both labels, optionally fixed by the build environment.
 # An official/reproducible release should provide SOURCE_DATE_EPOCH explicitly.
@@ -20,6 +26,11 @@ PRODUCT_SYSTEM_PROPERTIES += \
     org.pixelexperience.build_date=$(CUSTOM_BUILD_DATE) \
     org.pixelexperience.build_date_utc=$(CUSTOM_BUILD_DATE_UTC) \
     org.pixelexperience.build_type=$(CUSTOM_BUILD_TYPE)
+
+# Maintainer of the device (its product makefile sets CUSTOM_MAINTAINER).
+ifneq ($(strip $(CUSTOM_MAINTAINER)),)
+PRODUCT_SYSTEM_PROPERTIES += org.pixelexperience.maintainer=$(CUSTOM_MAINTAINER)
+endif
 
 # AOSP supplies its platform security patch from release config. Never publish
 # a fabricated (or device/vendor) patch date. Only mirror a known platform value.
