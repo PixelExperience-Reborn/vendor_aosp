@@ -11,6 +11,7 @@ VERIFIED_A17 only after checking it there.
 from pathlib import Path
 import importlib.util
 import re
+import struct
 import unittest
 import xml.etree.ElementTree as ET
 
@@ -61,6 +62,25 @@ class Aosp17OverlaysTest(unittest.TestCase):
                         n = element.get("name")
                         self.assertIn(n, VERIFIED_A17[target], f"{f}: {n}")
                         self.assertNotIn(n, NOT_HERE)
+
+    def test_default_wallpaper(self):
+        """The PE default wallpaper (home and lock screen: Android 17 uses
+        R.drawable.default_wallpaper for both). A portrait sRGB PNG of about
+        the phone aspect ratio, without metadata chunks."""
+        res = OVERLAYS / "FrameworksResPixelExperience/res"
+        drawables = sorted(str(f.relative_to(res)) for f in res.glob("drawable*/*"))
+        self.assertEqual(drawables, ["drawable-nodpi/default_wallpaper.png"])
+        data = (res / "drawable-nodpi/default_wallpaper.png").read_bytes()
+        self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+        chunks, i = [], 8
+        while i < len(data):
+            length, kind = struct.unpack(">I4s", data[i:i + 8])
+            chunks.append(kind.decode())
+            i += 12 + length
+        self.assertEqual(set(chunks), {"IHDR", "sRGB", "IDAT", "IEND"})
+        width, height = struct.unpack(">II", data[16:24])
+        self.assertGreaterEqual(width, 1080)
+        self.assertAlmostEqual(width / height, 9 / 20, delta=0.01)
 
     def test_ntp_servers_of_china_keep_a_fallback(self):
         root = ET.parse(OVERLAYS / "FrameworksResPixelExperience/res/values-mcc460/config.xml").getroot()
