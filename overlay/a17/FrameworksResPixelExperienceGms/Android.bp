@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Framework defaults of the GApps edition (WITH_GMS := true).
+
+runtime_resource_overlay {
+    name: "FrameworksResPixelExperienceGms",
+    product_specific: true,
+}

@@ -101,6 +101,18 @@ PRODUCT_PACKAGE_OVERLAYS += \
     vendor/aosp/overlay/common
 endif
 
+# The reviewed Android 17 successors of overlay/common (overlay/a17): runtime
+# resource overlays with only the resources Android 17 still defines
+# (tests/a17_overlays_test.py). Doze and app standby need a cloud messaging
+# service, so they are on in the GApps edition only.
+PRODUCT_PACKAGES += \
+    FrameworksResPixelExperience \
+    SettingsProviderResPixelExperience
+ifeq ($(WITH_GMS),true)
+PRODUCT_PACKAGES += \
+    FrameworksResPixelExperienceGms
+endif
+
 # Legacy TouchGestures requires a reviewed Android17 framework/service port.
 # Retain the historical package selection only as an explicit port candidate.
 ifeq ($(PE_A17_PORT_TOUCH_GESTURES),true)

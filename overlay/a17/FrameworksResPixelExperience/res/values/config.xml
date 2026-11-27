@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <!-- Multiple users with the user switcher, up to 4 users (PE product). -->
+    <bool name="config_enableMultiUserUI">true</bool>
+    <integer name="config_multiuserMaximumUsers">4</integer>
+    <!-- Long press of the power button also works with the screen off. -->
+    <bool name="config_supportLongPressPowerWhenNonInteractive">true</bool>
+</resources>

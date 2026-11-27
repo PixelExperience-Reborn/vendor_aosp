@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <!-- China (mcc 460): the national time service first, AOSP's server second. -->
+    <string-array name="config_ntpServers">
+        <item>ntp://ntp.ntsc.ac.cn</item>
+        <item>ntp://time.android.com</item>
+    </string-array>
+</resources>

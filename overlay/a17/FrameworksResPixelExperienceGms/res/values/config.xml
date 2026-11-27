@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <!-- Doze and app standby. AOSP keeps them off because apps then need a
+         cloud-to-device messaging service to be reached; the GApps edition has
+         it (Firebase Cloud Messaging of Google Play services). -->
+    <bool name="config_enableAutoPowerModes">true</bool>
+</resources>
