@@ -1,13 +1,17 @@
 LOCAL_PATH := $(call my-dir)
 
 ################################
-# Copies the APN list file into system/etc for the product as apns-conf.xml.
+# Installs the world APN list as product/etc/apns-conf.xml. TelephonyProvider
+# prefers the product copy to system/etc/apns-conf.xml, which AOSP's
+# full_base_telephony.mk fills with its sample list (PRODUCT_COPY_FILES): a
+# module at that system path too would be a duplicate install.
 # In the case where $(CUSTOM_APNS_FILE) is defined, the content of $(CUSTOM_APNS_FILE)
 # is added or replaced to the $(DEFAULT_APNS_FILE).
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := apns-conf.xml
 LOCAL_MODULE_CLASS := ETC
+LOCAL_PRODUCT_MODULE := true
 
 DEFAULT_APNS_FILE := vendor/aosp/prebuilt/common/etc/apns-conf.xml
 

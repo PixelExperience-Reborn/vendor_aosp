@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """The world APN list must be a well-formed apns-conf.xml TelephonyProvider loads whole.
 
-TelephonyProvider parses /system/etc/apns-conf.xml with a pull parser and
-stops at the first malformed element, so one broken attribute drops every
-APN after it. Each entry needs the numeric of the network (mcc + mnc).
+TelephonyProvider parses apns-conf.xml with a pull parser and stops at the
+first malformed element, so one broken attribute drops every APN after it.
+Each entry needs the numeric of the network (mcc + mnc). The list installs to
+product/etc, which TelephonyProvider prefers to system/etc (where AOSP's
+full_base_telephony.mk copies its sample list).
 """
 from pathlib import Path
 import re
@@ -26,6 +28,11 @@ class ApnsConfTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.root = ET.parse(APNS).getroot()
+
+    def test_installs_to_product(self):
+        mk = (APNS.parents[1] / "Android.mk").read_text()
+        module = mk.split("LOCAL_MODULE := apns-conf.xml", 1)[1].split("include $(BUILD_PREBUILT)", 1)[0]
+        self.assertIn("LOCAL_PRODUCT_MODULE := true", module)
 
     def test_root(self):
         self.assertEqual(self.root.tag, "apns")
